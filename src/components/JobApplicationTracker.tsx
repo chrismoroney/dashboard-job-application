@@ -1,90 +1,91 @@
 "use client";
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-
-type ApplicationStatus = "Accepted" | "Rejected" | "Interviewing" | "Submitted";
-
-interface JobApplication {
-  id: number;
-  jobTitle: string;
-  company: string;
-  materials: string[];
-  status: ApplicationStatus;
-}
-
-const initialApplications: JobApplication[] = [
-  { id: 1, jobTitle: "Frontend Developer", company: "Tech Solutions Inc.", materials: ["resume.pdf", "cover_letter.docx"], status: "Interviewing" },
-  { id: 2, jobTitle: "UX/UI Designer", company: "Creative Minds LLC", materials: ["portfolio.pdf", "resume.pdf"], status: "Submitted" },
-  { id: 3, jobTitle: "Backend Engineer", company: "Data Systems Co.", materials: ["resume.pdf"], status: "Rejected" },
-  { id: 4, jobTitle: "Product Manager", company: "Innovate Now", materials: ["resume.pdf", "cover_letter.pdf"], status: "Accepted" },
-];
-
-const statusStyles: { [key in ApplicationStatus]: string } = {
-  Accepted: "bg-green-100 text-green-800",
-  Rejected: "bg-red-100 text-red-800",
-  Interviewing: "bg-yellow-100 text-yellow-800",
-  Submitted: "bg-blue-100 text-blue-800",
-};
+import { motion } from "framer-motion";
+import StatusDropdown from "./StatusDropdown";
+import { useApplications } from "./ApplicationsProvider";
 
 export default function JobApplicationTracker() {
-  const [applications, setApplications] = useState<JobApplication[]>(initialApplications);
+  const { applications, updateStatus } = useApplications();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
-        <motion.h1 
-          className="text-4xl sm:text-5xl font-extrabold mb-8 text-center text-gray-800"
-          initial={{ y: -50, opacity: 0 }}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-10">
+      <div className="max-w-6xl mx-auto space-y-8">
+        <motion.div
+          initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
+          className="text-center space-y-3"
         >
-          Job Application Tracker
-        </motion.h1>
-        <motion.div 
-          className="overflow-x-auto bg-white rounded-2xl shadow-2xl"
-          initial={{ opacity: 0, scale: 0.95 }}
+          <p className="text-sm uppercase tracking-[0.3em] text-slate-300">
+            Applications
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-black text-white drop-shadow">
+            Job Application Tracker
+          </h1>
+          <p className="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto">
+            Keep an eye on every role, toggle statuses quickly, and stay ahead of your interview pipeline.
+          </p>
+        </motion.div>
+
+        <motion.div
+          className="overflow-hidden rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 shadow-2xl shadow-slate-900/50"
+          initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
         >
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="py-3.5 px-6 text-left text-sm font-semibold text-gray-900">Job Title</th>
-                <th scope="col" className="py-3.5 px-6 text-left text-sm font-semibold text-gray-900">Company</th>
-                <th scope="col" className="py-3.5 px-6 text-left text-sm font-semibold text-gray-900">Materials</th>
-                <th scope="col" className="py-3.5 px-6 text-left text-sm font-semibold text-gray-900">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {applications.map((app, index) => (
-                <motion.tr 
-                  key={app.id} 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
-                  className="hover:bg-gray-50"
-                >
-                  <td className="whitespace-nowrap py-4 px-6 text-sm font-medium text-gray-900">{app.jobTitle}</td>
-                  <td className="whitespace-nowrap py-4 px-6 text-sm text-gray-500">{app.company}</td>
-                  <td className="py-4 px-6 text-sm text-gray-500">
-                    <div className="flex flex-wrap gap-2">
-                      {app.materials.map((material, i) => (
-                        <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {material}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap py-4 px-6 text-sm">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${statusStyles[app.status]}`}>
-                      {app.status}
-                    </span>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="bg-gradient-to-r from-indigo-500/20 via-cyan-400/20 to-emerald-400/20 h-1 w-full" />
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-white/10">
+              <thead className="bg-white/5">
+                <tr>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Job Title</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Company</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Materials</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {applications.map((app, index) => (
+                  <motion.tr
+                    key={app.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.1, duration: 0.4 }}
+                    className="hover:bg-white/5 transition-colors"
+                  >
+                    <td className="whitespace-nowrap py-4 px-6 text-sm font-semibold text-white">{app.jobTitle}</td>
+                    <td className="whitespace-nowrap py-4 px-6 text-sm text-slate-200">{app.company}</td>
+                    <td className="py-4 px-6 text-sm text-slate-200">
+                      <div className="flex flex-wrap gap-2">
+                        {app.materials.map((material, i) => (
+                          material.url ? (
+                            <a
+                              key={`${material.name}-${i}`}
+                              href={material.url}
+                              download={material.name}
+                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-slate-100 border border-white/10 hover:border-cyan-300/70 hover:text-cyan-100 transition"
+                            >
+                              {material.name}
+                            </a>
+                          ) : (
+                            <span
+                              key={`${material.name}-${i}`}
+                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-slate-100 border border-white/10"
+                            >
+                              {material.name}
+                            </span>
+                          )
+                        ))}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap py-4 px-6 text-sm">
+                      <StatusDropdown value={app.status} onChange={(status) => updateStatus(app.id, status)} />
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </motion.div>
       </div>
     </div>
