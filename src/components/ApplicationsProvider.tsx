@@ -26,6 +26,11 @@ interface ApplicationsContextValue {
   error?: string;
   addApplication: (app: Omit<JobApplication, "id" | "createdAt">) => Promise<JobApplication | null>;
   updateStatus: (id: string, status: ApplicationStatus) => Promise<void>;
+  deleteApplication: (id: string) => Promise<void>;
+  updateApplication: (
+    id: string,
+    app: Partial<Omit<JobApplication, "id" | "createdAt">>
+  ) => Promise<JobApplication | null>;
   refresh: () => Promise<void>;
 }
 
@@ -47,14 +52,18 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
+  const userId = process.env.NEXT_PUBLIC_DEMO_USER_ID || "demo-user";
 
   const fetchApplications = async () => {
     setLoading(true);
     setError(undefined);
-    const { data, error } = await supabase
+    const query = supabase
       .from("applications")
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       setError(error.message);
@@ -80,6 +89,7 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
         status: app.status,
         notes: app.notes ?? "",
         materials: app.materials ?? [],
+        user_id: userId,
       })
       .select()
       .single();
@@ -98,7 +108,8 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
     const { error } = await supabase
       .from("applications")
       .update({ status })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", userId);
 
     if (error) {
       setError(error.message);
@@ -108,6 +119,44 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
     setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
   };
 
+  const deleteApplication = async (id: string) => {
+    const { error } = await supabase.from("applications").delete().eq("id", id).eq("user_id", userId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setApplications((prev) => prev.filter((app) => app.id !== id));
+  };
+
+  const updateApplication = async (
+    id: string,
+    app: Partial<Omit<JobApplication, "id" | "createdAt">>
+  ) => {
+    const payload: Record<string, unknown> = {};
+    if (app.jobTitle !== undefined) payload.job_title = app.jobTitle;
+    if (app.company !== undefined) payload.company = app.company;
+    if (app.status !== undefined) payload.status = app.status;
+    if (app.notes !== undefined) payload.notes = app.notes;
+    if (app.materials !== undefined) payload.materials = app.materials;
+
+    const { data, error } = await supabase
+      .from("applications")
+      .update(payload)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      setError(error.message);
+      return null;
+    }
+
+    const mapped = mapRow(data);
+    setApplications((prev) => prev.map((row) => (row.id === id ? mapped : row)));
+    return mapped;
+  };
+
   const value = useMemo(
     () => ({
       applications,
@@ -115,6 +164,8 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
       error,
       addApplication,
       updateStatus,
+      deleteApplication,
+      updateApplication,
       refresh: fetchApplications,
     }),
     [applications, loading, error]

@@ -3,13 +3,18 @@
 import { motion } from "framer-motion";
 import StatusDropdown from "./StatusDropdown";
 import { useApplications } from "./ApplicationsProvider";
+import ConfirmDialog from "./ConfirmDialog";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function JobApplicationTracker() {
-  const { applications, updateStatus, loading, error } = useApplications();
+  const router = useRouter();
+  const { applications, updateStatus, deleteApplication, loading, error } = useApplications();
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-10">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-12">
+      <div className="max-w-screen-2xl w-full mx-auto space-y-10">
         <motion.div
           initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -28,7 +33,7 @@ export default function JobApplicationTracker() {
         </motion.div>
 
         <motion.div
-          className="overflow-hidden rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 shadow-2xl shadow-slate-900/50"
+          className="overflow-visible rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 shadow-2xl shadow-slate-900/50"
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
@@ -47,6 +52,7 @@ export default function JobApplicationTracker() {
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Company</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Materials</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Status</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
@@ -82,6 +88,8 @@ export default function JobApplicationTracker() {
                               key={`${material.name}-${i}`}
                               href={material.url}
                               download={material.name}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-slate-100 border border-white/10 hover:border-cyan-300/70 hover:text-cyan-100 transition"
                             >
                               {material.name}
@@ -100,6 +108,14 @@ export default function JobApplicationTracker() {
                     <td className="whitespace-nowrap py-4 px-6 text-sm">
                       <StatusDropdown value={app.status} onChange={(status) => updateStatus(app.id, status)} />
                     </td>
+                    <td className="whitespace-nowrap py-4 px-6 text-sm text-right">
+                      <MenuButton
+                        onEdit={() => {
+                          router.push(`/upload?id=${app.id}`);
+                        }}
+                        onDelete={() => setPendingDelete(app.id)}
+                      />
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -107,6 +123,67 @@ export default function JobApplicationTracker() {
           </div>
         </motion.div>
       </div>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete application?"
+        description="This will remove the job application and its links. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) {
+            await deleteApplication(pendingDelete);
+            setPendingDelete(null);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function MenuButton({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative inline-block text-left" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+        aria-label="More options"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-36 rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl backdrop-blur-xl z-40">
+          <button
+            className="block w-full text-left px-4 py-3 text-sm text-white hover:bg-white/10"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+          >
+            Edit
+          </button>
+          <button
+            className="block w-full text-left px-4 py-3 text-sm text-rose-200 hover:bg-white/10"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }
