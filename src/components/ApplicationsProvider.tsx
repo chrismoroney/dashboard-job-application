@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, ReactNode } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 export type ApplicationStatus = "Accepted" | "Rejected" | "Interviewing" | "Submitted";
 
@@ -10,82 +11,113 @@ export interface ApplicationMaterial {
 }
 
 export interface JobApplication {
-  id: number;
+  id: string;
   jobTitle: string;
   company: string;
   materials: ApplicationMaterial[];
   status: ApplicationStatus;
+  notes?: string;
+  createdAt?: string;
 }
 
 interface ApplicationsContextValue {
   applications: JobApplication[];
-  addApplication: (app: Omit<JobApplication, "id">) => void;
-  updateStatus: (id: number, status: ApplicationStatus) => void;
+  loading: boolean;
+  error?: string;
+  addApplication: (app: Omit<JobApplication, "id" | "createdAt">) => Promise<JobApplication | null>;
+  updateStatus: (id: string, status: ApplicationStatus) => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const ApplicationsContext = createContext<ApplicationsContextValue | null>(null);
 
-const initialApplications: JobApplication[] = [
-  {
-    id: 1,
-    jobTitle: "Frontend Developer",
-    company: "Tech Solutions Inc.",
-    materials: [
-      { name: "resume.pdf" },
-      { name: "cover_letter.docx" },
-    ],
-    status: "Interviewing",
-  },
-  {
-    id: 2,
-    jobTitle: "UX/UI Designer",
-    company: "Creative Minds LLC",
-    materials: [
-      { name: "portfolio.pdf" },
-      { name: "resume.pdf" },
-    ],
-    status: "Submitted",
-  },
-  {
-    id: 3,
-    jobTitle: "Backend Engineer",
-    company: "Data Systems Co.",
-    materials: [{ name: "resume.pdf" }],
-    status: "Rejected",
-  },
-  {
-    id: 4,
-    jobTitle: "Product Manager",
-    company: "Innovate Now",
-    materials: [
-      { name: "resume.pdf" },
-      { name: "cover_letter.pdf" },
-    ],
-    status: "Accepted",
-  },
-];
+function mapRow(row: any): JobApplication {
+  return {
+    id: row.id,
+    jobTitle: row.job_title,
+    company: row.company,
+    status: row.status,
+    notes: row.notes ?? "",
+    materials: Array.isArray(row.materials) ? row.materials : [],
+    createdAt: row.created_at,
+  };
+}
 
 export default function ApplicationsProvider({ children }: { children: ReactNode }) {
-  const [applications, setApplications] = useState<JobApplication[]>(initialApplications);
+  const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>(undefined);
 
-  const addApplication = (app: Omit<JobApplication, "id">) => {
-    setApplications((prev) => [
-      { ...app, id: Date.now() },
-      ...prev,
-    ]);
+  const fetchApplications = async () => {
+    setLoading(true);
+    setError(undefined);
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const mapped = (data ?? []).map(mapRow);
+    setApplications(mapped);
+    setLoading(false);
   };
 
-  const updateStatus = (id: number, status: ApplicationStatus) => {
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const addApplication = async (app: Omit<JobApplication, "id" | "createdAt">) => {
+    const { data, error } = await supabase
+      .from("applications")
+      .insert({
+        job_title: app.jobTitle,
+        company: app.company,
+        status: app.status,
+        notes: app.notes ?? "",
+        materials: app.materials ?? [],
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setError(error.message);
+      return null;
+    }
+
+    const mapped = mapRow(data);
+    setApplications((prev) => [mapped, ...prev]);
+    return mapped;
+  };
+
+  const updateStatus = async (id: string, status: ApplicationStatus) => {
+    const { error } = await supabase
+      .from("applications")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
     setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
   };
 
   const value = useMemo(
     () => ({
       applications,
+      loading,
+      error,
       addApplication,
       updateStatus,
+      refresh: fetchApplications,
     }),
-    [applications]
+    [applications, loading, error]
   );
 
   return <ApplicationsContext.Provider value={value}>{children}</ApplicationsContext.Provider>;

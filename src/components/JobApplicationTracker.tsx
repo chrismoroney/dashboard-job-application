@@ -5,7 +5,7 @@ import StatusDropdown from "./StatusDropdown";
 import { useApplications } from "./ApplicationsProvider";
 
 export default function JobApplicationTracker() {
-  const { applications, updateStatus } = useApplications();
+  const { applications, updateStatus, loading, error } = useApplications();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-10">
@@ -33,6 +33,11 @@ export default function JobApplicationTracker() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
         >
+          {error && (
+            <div className="bg-rose-500/10 text-rose-100 border border-rose-500/30 px-4 py-3 text-sm">
+              Failed to load applications: {error}
+            </div>
+          )}
           <div className="bg-gradient-to-r from-indigo-500/20 via-cyan-400/20 to-emerald-400/20 h-1 w-full" />
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/10">
@@ -45,6 +50,20 @@ export default function JobApplicationTracker() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
+                {loading && (
+                  <tr>
+                    <td colSpan={4} className="py-6 px-6 text-center text-slate-200 text-sm">
+                      Loading applications...
+                    </td>
+                  </tr>
+                )}
+                {!loading && applications.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-6 px-6 text-center text-slate-200 text-sm">
+                      No applications yet. Add one from the Upload page.
+                    </td>
+                  </tr>
+                )}
                 {applications.map((app, index) => (
                   <motion.tr
                     key={app.id}

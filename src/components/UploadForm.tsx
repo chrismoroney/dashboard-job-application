@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import FileUploader from "./FileUploader";
 import { ApplicationStatus, useApplications } from "./ApplicationsProvider";
+import { supabase } from "../lib/supabaseClient";
 
 const statusOptions: ApplicationStatus[] = ["Submitted", "Interviewing", "Accepted", "Rejected"];
 
@@ -22,21 +23,50 @@ export default function UploadForm() {
   const [status, setStatus] = useState<ApplicationStatus>("Submitted");
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    void submitForm();
+  };
 
-    const materials = files.map((file) => ({
-      name: file.name,
-      url: URL.createObjectURL(file),
-    }));
+  const submitForm = async () => {
+    setSubmitting(true);
+    setError(null);
 
-    addApplication({
+    const bucket = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || "materials";
+    const materials = [];
+
+    for (const file of files) {
+      const path = `uploads/${crypto.randomUUID?.() ?? Date.now()}-${file.name}`;
+      const { error: uploadError, data } = await supabase.storage
+        .from(bucket)
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) {
+        setError(uploadError.message);
+        setSubmitting(false);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+      materials.push({ name: file.name, url: publicUrlData.publicUrl });
+    }
+
+    const saved = await addApplication({
       jobTitle,
       company,
       status,
-      materials: materials.length > 0 ? materials : notes ? [{ name: notes }] : [],
+      notes,
+      materials: materials.length > 0 ? materials : [],
     });
+
+    if (!saved) {
+      setError("Could not save application. Please try again.");
+      setSubmitting(false);
+      return;
+    }
 
     router.push("/");
   };
@@ -128,10 +158,12 @@ export default function UploadForm() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:shadow-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+          disabled={submitting}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:shadow-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Submit Upload
+          {submitting ? "Submitting..." : "Submit Upload"}
         </button>
+        {error && <span className="text-sm font-semibold text-rose-200">{error}</span>}
       </div>
     </form>
   );
