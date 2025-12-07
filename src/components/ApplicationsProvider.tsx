@@ -57,13 +57,10 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   const fetchApplications = async () => {
     setLoading(true);
     setError(undefined);
-    const query = supabase
+    const { data, error } = await supabase
       .from("applications")
       .select("*")
-      .eq("user_id", userId)
       .order("created_at", { ascending: false });
-
-    const { data, error } = await query;
 
     if (error) {
       setError(error.message);
@@ -105,18 +102,32 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   };
 
   const updateStatus = async (id: string, status: ApplicationStatus) => {
-    const { error } = await supabase
+    console.log("Updating status", { id, status });
+    // optimistic UI update
+    setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
+
+    const { data, error } = await supabase
       .from("applications")
       .update({ status })
       .eq("id", id)
-      .eq("user_id", userId);
+      .select()
+      .single();
 
     if (error) {
+      console.error("Status update failed", error.message);
       setError(error.message);
+      // revert on error
+      await fetchApplications();
       return;
     }
 
-    setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
+    if (data) {
+      const updated = mapRow(data);
+      setApplications((prev) => prev.map((app) => (app.id === id ? updated : app)));
+    } else {
+      // fallback to a full refresh if no row returned
+      await fetchApplications();
+    }
   };
 
   const deleteApplication = async (id: string) => {

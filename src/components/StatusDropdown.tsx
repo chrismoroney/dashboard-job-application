@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { ApplicationStatus } from "./ApplicationsProvider";
 
 const statusStyles: Record<ApplicationStatus, string> = {
@@ -27,11 +26,7 @@ export default function StatusDropdown({ value, onChange }: StatusDropdownProps)
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number }>({
-    top: 0,
-    left: 0,
-    width: 0,
-  });
+  const [dropUp, setDropUp] = useState(false);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -44,28 +39,14 @@ export default function StatusDropdown({ value, onChange }: StatusDropdownProps)
   }, []);
 
   useLayoutEffect(() => {
-    if (!open || !buttonRef.current) return;
-
-    const updatePosition = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      const estimatedMenuHeight = 190; // all 4 options; prefer drop-down unless very tight
-      const dropUp = window.innerHeight - rect.bottom < estimatedMenuHeight;
-      const top = dropUp
-        ? rect.top + window.scrollY - estimatedMenuHeight - 8
-        : rect.bottom + window.scrollY + 8;
-      const width = Math.max(rect.width, 208);
-      const left = rect.right + window.scrollX - width;
-      setMenuStyle({ top, left, width });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
+    if (!open || !buttonRef.current) {
+      setDropUp(false);
+      return;
+    }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedMenuHeight = 200;
+    const shouldDropUp = window.innerHeight - rect.bottom < estimatedMenuHeight;
+    setDropUp(shouldDropUp);
   }, [open]);
 
   return (
@@ -82,30 +63,30 @@ export default function StatusDropdown({ value, onChange }: StatusDropdownProps)
         </span>
         <span aria-hidden className="text-xs text-white/80">▼</span>
       </button>
-      {open &&
-        createPortal(
-          <div
-            style={{ position: "absolute", top: menuStyle.top, left: menuStyle.left, width: menuStyle.width }}
-            className="z-50 overflow-visible max-h-none rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-2xl backdrop-blur-xl"
-          >
-            {(["Accepted", "Interviewing", "Submitted", "Rejected"] as ApplicationStatus[]).map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => {
-                  onChange(status);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-white transition hover:bg-white/10"
-              >
-                <span className={`h-2.5 w-2.5 rounded-full ${statusDot[status]}`} />
-                <span className="flex-1">{status}</span>
-                {status === value && <span className="text-xs text-slate-200">Selected</span>}
-              </button>
-            ))}
-          </div>,
-          document.body
-        )}
+      {open && (
+        <div
+          className={`absolute right-0 z-50 w-52 rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-2xl backdrop-blur-xl ${
+            dropUp ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+        >
+          {(["Accepted", "Interviewing", "Submitted", "Rejected"] as ApplicationStatus[]).map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => {
+                console.log("Dropdown change", status);
+                onChange(status);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-white transition hover:bg-white/10"
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${statusDot[status]}`} />
+              <span className="flex-1">{status}</span>
+              {status === value && <span className="text-xs text-slate-200">Selected</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

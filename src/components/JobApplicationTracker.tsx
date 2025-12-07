@@ -160,7 +160,7 @@ function MenuButton({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
         className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
         aria-label="More options"
       >
-        ⋯
+        ...
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-36 rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl backdrop-blur-xl z-40">
