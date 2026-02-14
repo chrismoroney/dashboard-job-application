@@ -1,5 +1,10 @@
 import UploadPage from "../../components/UploadPage";
+import AuthGuard from "../../components/AuthGuard";
 
 export default function Page() {
-  return <UploadPage />;
+  return (
+    <AuthGuard>
+      <UploadPage />
+    </AuthGuard>
+  );
 }
