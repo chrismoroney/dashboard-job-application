@@ -1,18 +1,22 @@
 import UploadForm from "./UploadForm";
 import Link from "next/link";
+import SignOutButton from "./SignOutButton";
 
 export default function UploadPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
-            href="/"
+            href="/dashboard"
             className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300"
           >
             ← Back to Dashboard
           </Link>
-          <span className="text-xs text-slate-300 uppercase tracking-[0.2em]">Upload</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-300 uppercase tracking-[0.2em]">Upload</span>
+            <SignOutButton variant="danger" />
+          </div>
         </div>
 
         <header className="space-y-3 text-center">
