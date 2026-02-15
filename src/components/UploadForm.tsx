@@ -22,20 +22,31 @@ export default function UploadForm() {
   const { applications, addApplication, updateApplication } = useApplications();
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
+  const [location, setLocation] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [status, setStatus] = useState<ApplicationStatus>("Submitted");
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [existingMaterials, setExistingMaterials] = useState<{ name: string; url?: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const userId = process.env.NEXT_PUBLIC_DEMO_USER_ID || "demo-user";
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUserId(data.user?.id ?? null);
+    };
+
+    loadUser();
+
     if (!editId) return;
     const existing = applications.find((app) => app.id === editId);
     if (existing) {
       setJobTitle(existing.jobTitle);
       setCompany(existing.company);
+      setLocation(existing.location || "");
+      setDate(existing.date || new Date().toISOString().split("T")[0]);
       setStatus(existing.status);
       setNotes(existing.notes || "");
       setExistingMaterials(existing.materials || []);
@@ -47,6 +58,8 @@ export default function UploadForm() {
       if (data) {
         setJobTitle(data.job_title);
         setCompany(data.company);
+        setLocation(data.location || "");
+        setDate(data.applied_date || new Date().toISOString().split("T")[0]);
         setStatus(data.status);
         setNotes(data.notes || "");
         setExistingMaterials(Array.isArray(data.materials) ? data.materials : []);
@@ -64,6 +77,12 @@ export default function UploadForm() {
     setSubmitting(true);
     setError(null);
 
+    if (!userId) {
+      setError("You must be logged in to submit an application.");
+      setSubmitting(false);
+      return;
+    }
+
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || "materials";
     if (!bucket) {
       setError("No storage bucket configured. Set NEXT_PUBLIC_SUPABASE_BUCKET in .env.local.");
@@ -73,8 +92,18 @@ export default function UploadForm() {
 
     const materials = [];
 
+    const sanitizeFileName = (name: string) => {
+      const lastDotIndex = name.lastIndexOf(".");
+      const base = lastDotIndex > 0 ? name.slice(0, lastDotIndex) : name;
+      const ext = lastDotIndex > 0 ? name.slice(lastDotIndex) : "";
+      const safeBase = base.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const safeExt = ext.replace(/[^a-zA-Z0-9.]/g, "");
+      return `${safeBase}${safeExt}` || "file";
+    };
+
     for (const file of files) {
-      const path = `uploads/${userId}/${crypto.randomUUID?.() ?? Date.now()}-${file.name}`;
+      const safeName = sanitizeFileName(file.name);
+      const path = `uploads/${userId}/${crypto.randomUUID?.() ?? Date.now()}-${safeName}`;
       const { error: uploadError, data } = await supabase.storage
         .from(bucket)
         .upload(path, file, { cacheControl: "3600", upsert: false });
@@ -94,6 +123,8 @@ export default function UploadForm() {
       const updated = await updateApplication(editId, {
         jobTitle,
         company,
+        location,
+        date,
         status,
         notes,
         materials: updatedMaterials,
@@ -107,6 +138,8 @@ export default function UploadForm() {
       const saved = await addApplication({
         jobTitle,
         company,
+        location,
+        date,
         status,
         notes,
         materials: materials.length > 0 ? materials : [],
@@ -119,7 +152,7 @@ export default function UploadForm() {
       }
     }
 
-    router.push("/");
+    router.push("/dashboard");
   };
 
   return (
@@ -136,7 +169,7 @@ export default function UploadForm() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-2">
           <label className="text-sm font-semibold text-slate-100">Job Title</label>
           <input
@@ -155,6 +188,24 @@ export default function UploadForm() {
             placeholder="e.g., Acme Corp"
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-100">Location</label>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="e.g., Seattle, WA"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-100">Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-cyan-300/60 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
           />
         </div>
       </div>

@@ -4,13 +4,15 @@ import { motion } from "framer-motion";
 import StatusDropdown from "./StatusDropdown";
 import { useApplications } from "./ApplicationsProvider";
 import ConfirmDialog from "./ConfirmDialog";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 export default function JobApplicationTracker() {
   const router = useRouter();
   const { applications, updateStatus, deleteApplication, loading, error } = useApplications();
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 sm:p-12">
@@ -33,7 +35,7 @@ export default function JobApplicationTracker() {
         </motion.div>
 
         <motion.div
-          className="overflow-visible rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 shadow-2xl shadow-slate-900/50"
+          className="min-h-[420px] overflow-visible rounded-3xl bg-white/10 backdrop-blur-xl border border-white/10 shadow-2xl shadow-slate-900/50"
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
@@ -45,27 +47,29 @@ export default function JobApplicationTracker() {
           )}
           <div className="bg-gradient-to-r from-indigo-500/20 via-cyan-400/20 to-emerald-400/20 h-1 w-full" />
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10">
+            <table className="min-w-full divide-y divide-white/10 overflow-visible">
               <thead className="bg-white/5">
                 <tr>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Job Title</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Company</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Location</th>
+                  <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Date</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Materials</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200">Status</th>
                   <th scope="col" className="py-4 px-6 text-left text-xs font-semibold uppercase tracking-wide text-slate-200"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className="divide-y divide-white/10 overflow-visible">
                 {loading && (
                   <tr>
-                    <td colSpan={4} className="py-6 px-6 text-center text-slate-200 text-sm">
+                    <td colSpan={7} className="py-6 px-6 text-center text-slate-200 text-sm">
                       Loading applications...
                     </td>
                   </tr>
                 )}
                 {!loading && applications.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-6 px-6 text-center text-slate-200 text-sm">
+                    <td colSpan={7} className="py-6 px-6 text-center text-slate-200 text-sm">
                       No applications yet. Add one from the Upload page.
                     </td>
                   </tr>
@@ -76,10 +80,16 @@ export default function JobApplicationTracker() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 + index * 0.1, duration: 0.4 }}
-                    className="hover:bg-white/5 transition-colors"
+                    className={`transition-colors ${
+                      activeDropdownId === app.id
+                        ? "relative z-30 bg-white/5"
+                        : "hover:bg-white/5"
+                    }`}
                   >
                     <td className="whitespace-nowrap py-4 px-6 text-sm font-semibold text-white">{app.jobTitle}</td>
                     <td className="whitespace-nowrap py-4 px-6 text-sm text-slate-200">{app.company}</td>
+                    <td className="whitespace-nowrap py-4 px-6 text-sm text-slate-200">{app.location || "—"}</td>
+                    <td className="whitespace-nowrap py-4 px-6 text-sm text-slate-200">{app.date || "—"}</td>
                     <td className="py-4 px-6 text-sm text-slate-200">
                       <div className="flex flex-wrap gap-2">
                         {app.materials.map((material, i) => (
@@ -105,8 +115,12 @@ export default function JobApplicationTracker() {
                         ))}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap py-4 px-6 text-sm">
-                      <StatusDropdown value={app.status} onChange={(status) => updateStatus(app.id, status)} />
+                    <td className="relative whitespace-nowrap py-4 px-6 text-sm">
+                      <StatusDropdown
+                        value={app.status}
+                        onChange={(status) => updateStatus(app.id, status)}
+                        onOpenChange={(open) => setActiveDropdownId(open ? app.id : null)}
+                      />
                     </td>
                     <td className="whitespace-nowrap py-4 px-6 text-sm text-right">
                       <MenuButton
@@ -144,6 +158,9 @@ export default function JobApplicationTracker() {
 function MenuButton({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [dropUp, setDropUp] = useState(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -153,37 +170,63 @@ function MenuButton({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      setMenuPosition(null);
+      setDropUp(false);
+      return;
+    }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedMenuHeight = 120;
+    const shouldDropUp = window.innerHeight - rect.bottom < estimatedMenuHeight;
+    setDropUp(shouldDropUp);
+    setMenuPosition({
+      top: shouldDropUp ? rect.top : rect.bottom,
+      left: rect.right,
+    });
+  }, [open]);
+
   return (
     <div className="relative inline-block text-left" ref={ref}>
       <button
+        ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
         aria-label="More options"
       >
         ...
       </button>
-      {open && (
-        <div className="absolute right-0 mt-2 w-36 rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl backdrop-blur-xl z-40">
-          <button
-            className="block w-full text-left px-4 py-3 text-sm text-white hover:bg-white/10"
-            onClick={() => {
-              setOpen(false);
-              onEdit();
+      {open &&
+        menuPosition &&
+        createPortal(
+          <div
+            className="fixed z-[9999] w-36 rounded-2xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl backdrop-blur-xl"
+            style={{
+              top: dropUp ? menuPosition.top - 8 : menuPosition.top + 8,
+              left: menuPosition.left - 144,
             }}
           >
-            Edit
-          </button>
-          <button
-            className="block w-full text-left px-4 py-3 text-sm text-rose-200 hover:bg-white/10"
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      )}
+            <button
+              className="block w-full text-left px-4 py-3 text-sm text-white hover:bg-white/10"
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+            >
+              Edit
+            </button>
+            <button
+              className="block w-full text-left px-4 py-3 text-sm text-rose-200 hover:bg-white/10"
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+            >
+              Delete
+            </button>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -14,6 +14,8 @@ export interface JobApplication {
   id: string;
   jobTitle: string;
   company: string;
+  location?: string;
+  date?: string;
   materials: ApplicationMaterial[];
   status: ApplicationStatus;
   notes?: string;
@@ -41,6 +43,8 @@ function mapRow(row: any): JobApplication {
     id: row.id,
     jobTitle: row.job_title,
     company: row.company,
+    location: row.location ?? "",
+    date: row.applied_date ?? "",
     status: row.status,
     notes: row.notes ?? "",
     materials: Array.isArray(row.materials) ? row.materials : [],
@@ -52,14 +56,21 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
-  const userId = process.env.NEXT_PUBLIC_DEMO_USER_ID || "demo-user";
+  const [userId, setUserId] = useState<string | null>(null);
 
-  const fetchApplications = async () => {
+  const fetchApplications = async (activeUserId?: string | null) => {
+    const resolvedUserId = activeUserId ?? userId;
+    if (!resolvedUserId) {
+      setApplications([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(undefined);
     const { data, error } = await supabase
       .from("applications")
       .select("*")
+      .eq("user_id", resolvedUserId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -74,15 +85,39 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   };
 
   useEffect(() => {
-    fetchApplications();
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      const resolvedUserId = data.user?.id ?? null;
+      setUserId(resolvedUserId);
+      await fetchApplications(resolvedUserId);
+    };
+
+    loadUser();
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((_, session) => {
+      const resolvedUserId = session?.user?.id ?? null;
+      setUserId(resolvedUserId);
+      void fetchApplications(resolvedUserId);
+    });
+
+    return () => {
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
   const addApplication = async (app: Omit<JobApplication, "id" | "createdAt">) => {
+    if (!userId) {
+      setError("You must be logged in to add applications.");
+      return null;
+    }
+
     const { data, error } = await supabase
       .from("applications")
       .insert({
         job_title: app.jobTitle,
         company: app.company,
+        location: app.location ?? "",
+        applied_date: app.date ?? null,
         status: app.status,
         notes: app.notes ?? "",
         materials: app.materials ?? [],
@@ -131,6 +166,11 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
   };
 
   const deleteApplication = async (id: string) => {
+    if (!userId) {
+      setError("You must be logged in to delete applications.");
+      return;
+    }
+
     const { error } = await supabase.from("applications").delete().eq("id", id).eq("user_id", userId);
     if (error) {
       setError(error.message);
@@ -143,9 +183,15 @@ export default function ApplicationsProvider({ children }: { children: ReactNode
     id: string,
     app: Partial<Omit<JobApplication, "id" | "createdAt">>
   ) => {
+    if (!userId) {
+      setError("You must be logged in to update applications.");
+      return null;
+    }
     const payload: Record<string, unknown> = {};
     if (app.jobTitle !== undefined) payload.job_title = app.jobTitle;
     if (app.company !== undefined) payload.company = app.company;
+    if (app.location !== undefined) payload.location = app.location;
+    if (app.date !== undefined) payload.applied_date = app.date;
     if (app.status !== undefined) payload.status = app.status;
     if (app.notes !== undefined) payload.notes = app.notes;
     if (app.materials !== undefined) payload.materials = app.materials;
